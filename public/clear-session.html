@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Session Reset — APEX Driver</title>
+  <style>
+    body { font-family: 'Barlow Condensed', Arial, sans-serif; background: #0a0a14; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+    .box { text-align: center; padding: 2rem; }
+    h1 { color: #FF6200; }
+    p { color: #a0a0b8; }
+    a { color: #FF6200; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Session Reset</h1>
+    <p>Your session was cleared due to a cookie issue.<br>Please sign in again.</p>
+    <p><a href="/login">Go to Sign In</a></p>
+  </div>
+  <script>
+    // Clear all cookies
+    document.cookie.split(';').forEach(c => {
+      document.cookie = c.trim().split('=')[0] + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
+    });
+    localStorage.clear();
+  </script>
+</body>
+</html>
