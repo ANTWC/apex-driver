@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
+import Disclaimer from '@/components/Disclaimer';
 import {
   AlertTriangle,
   Search,
@@ -334,7 +335,7 @@ export default function HomePage() {
         </div>
 
         {/* Credibility Footer */}
-        <div className="mt-12 mb-8 text-center">
+        <div className="mt-12 mb-4 text-center">
           <p className="text-[#FF6200] font-semibold text-sm">Built by a 25-year ASE Master Technician</p>
           <p className="text-[#6b6b80] text-xs mt-2 max-w-xs mx-auto">
             Not a tech startup guessing about cars — real shop-floor expertise powering every answer.
@@ -343,6 +344,8 @@ export default function HomePage() {
           <p className="text-[#6b6b80] text-xs mt-2">A.W.C. Consulting LLC</p>
         </div>
       </main>
+
+      <Disclaimer />
     </div>
   );
 }
