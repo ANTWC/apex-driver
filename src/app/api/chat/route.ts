@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
-const SUPER_ADMIN_EMAILS = ['antcalhoun1@gmail.com'];
+// Admin bypass disabled — testing Stripe unlock flow as a regular user
+// To re-enable: ['antcalhoun1@gmail.com']
+const SUPER_ADMIN_EMAILS: string[] = [];
 
 function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
