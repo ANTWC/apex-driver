@@ -62,6 +62,7 @@ export default function SeasonalPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [tier, setTier] = useState('free');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) { router.replace('/login'); return; }
@@ -69,10 +70,11 @@ export default function SeasonalPage() {
       const supabase = createClient();
       supabase.from('driver_profiles').select('tier').eq('user_id', user.id).single()
         .then(({ data }) => { if (data) setTier(data.tier); });
+      fetch('/api/admin/check').then(r => r.json()).then(d => setIsAdmin(d.authorized)).catch(() => {});
     }
   }, [user, authLoading, router]);
 
-  if (tier !== 'pro' && !authLoading) {
+  if (tier !== 'pro' && !isAdmin && !authLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a14] flex flex-col">
         <header className="sticky top-0 z-50 bg-[#0a0a14]/95 backdrop-blur border-b border-[#2a2a3e]">

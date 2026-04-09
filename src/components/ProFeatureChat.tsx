@@ -4,19 +4,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, Send, Loader2, Camera, Lock } from 'lucide-react';
+import VehicleSelector from '@/components/VehicleSelector';
+import type { Vehicle } from '@/components/VehicleSelector';
+import { ArrowLeft, Send, Loader2, Camera, Lock, Car } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-}
-
-interface Vehicle {
-  id: string;
-  year: number;
-  make: string;
-  model: string;
-  mileage: number | null;
 }
 
 interface ProFeatureChatProps {
@@ -43,6 +37,7 @@ export default function ProFeatureChat({
   const [loading, setLoading] = useState(false);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [tier, setTier] = useState<string>('free');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -51,11 +46,12 @@ export default function ProFeatureChat({
     if (!authLoading && !user) { router.replace('/login'); return; }
     if (user) {
       const supabase = createClient();
-      supabase.from('driver_vehicles').select('*').eq('user_id', user.id)
-        .order('created_at', { ascending: false }).limit(1)
-        .then(({ data }) => { if (data?.[0]) setVehicle(data[0]); });
       supabase.from('driver_profiles').select('tier').eq('user_id', user.id).single()
         .then(({ data }) => { if (data) setTier(data.tier); });
+      fetch('/api/admin/check')
+        .then(r => r.json())
+        .then(d => setIsAdmin(d.authorized))
+        .catch(() => {});
     }
   }, [user, authLoading, router]);
 
@@ -112,7 +108,7 @@ export default function ProFeatureChat({
     setLoading(false);
   };
 
-  if (tier !== 'pro' && !authLoading) {
+  if (tier !== 'pro' && !isAdmin && !authLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a14] flex flex-col">
         <header className="sticky top-0 z-50 bg-[#0a0a14]/95 backdrop-blur border-b border-[#2a2a3e]">
@@ -152,8 +148,23 @@ export default function ProFeatureChat({
         </div>
       </header>
 
+      {/* Vehicle Selector */}
+      <div className="max-w-lg mx-auto w-full px-4 pt-3">
+        <VehicleSelector selected={vehicle} onSelect={setVehicle} />
+      </div>
+
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-4 overflow-y-auto">
-        {messages.length === 0 && (
+        {!vehicle && messages.length === 0 && (
+          <div className="text-center mt-12">
+            <Car className="w-12 h-12 text-[#6b6b80] mx-auto mb-3" />
+            <p className="text-white font-semibold text-lg mb-1">Add Your Vehicle First</p>
+            <p className="text-[#a0a0b8] text-sm mb-4">We need your vehicle info to give you accurate advice.</p>
+            <button onClick={() => router.push('/settings')} className="px-6 py-2 rounded-lg bg-[#FF6200] text-white font-semibold">
+              Add Vehicle
+            </button>
+          </div>
+        )}
+        {vehicle && messages.length === 0 && (
           <div className="text-center mt-12">
             <p className="text-[#a0a0b8] text-lg mb-2">{emptyStateTitle}</p>
             <p className="text-[#6b6b80] text-sm">{emptyStateDescription}</p>
@@ -217,7 +228,7 @@ export default function ProFeatureChat({
             />
             <button
               onClick={handleSend}
-              disabled={loading || !input.trim()}
+              disabled={loading || !input.trim() || !vehicle}
               className="px-4 py-3 rounded-xl bg-[#FF6200] text-white hover:bg-[#e55800] disabled:opacity-50"
             >
               <Send className="w-5 h-5" />

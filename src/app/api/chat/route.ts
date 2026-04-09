@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
-// Admin bypass disabled — testing Stripe unlock flow as a regular user
-// To re-enable: ['antcalhoun1@gmail.com']
-const SUPER_ADMIN_EMAILS: string[] = [];
+const SUPER_ADMIN_EMAILS: string[] = ['antcalhoun1@gmail.com'];
 
 function getAnthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -170,17 +168,53 @@ const WARNING_LIGHTS_PROMPT = `You are a patient automotive advisor explaining a
 
 The user has a warning light on. Using the verified search data about their specific vehicle and your knowledge:
 
-1. What this light means on THEIR specific year/make/model — not generic info
-2. Urgency rating with explanation:
-   - STOP DRIVING NOW — Pull over safely. Do not drive until inspected.
-   - GET CHECKED THIS WEEK — Not immediately dangerous but needs attention soon.
-   - SCHEDULE SERVICE SOON — Can wait for a convenient appointment.
-3. The most common causes of this light on their specific vehicle (include any known TSBs or common issues)
-4. What to do RIGHT NOW — specific, actionable steps
-5. Warning signs that would make it MORE urgent
-6. What to tell their mechanic when they call
+=== RESPONSE STRUCTURE ===
 
-Be specific to their vehicle. Don't give generic advice when you know what they drive.
+1. WHAT THIS LIGHT MEANS ON THEIR VEHICLE
+   - Explain what this light specifically means on their year/make/model — not generic info
+   - Use the Gemini search results to reference their actual vehicle
+
+2. CRITICAL VARIATIONS (this is where most apps fail — you must get this right)
+   For CHECK ENGINE light:
+   - SOLID check engine light = schedule service within a week. First thing to check: is the gas cap loose or not clicked? Tighten it, drive for a day, see if it clears. If not, get it scanned.
+   - FLASHING check engine light = ACTIVE MISFIRE. This is urgent. Reduce speed immediately, no hard acceleration, get to a shop ASAP. Continued driving with a flashing CEL can destroy the catalytic converter — that is a $1,000+ repair. These are COMPLETELY different urgency levels.
+
+   For TEMPERATURE / OVERHEATING:
+   - Gauge in the red = STOP DRIVING IMMEDIATELY. Pull over safely, turn off the engine.
+   - DO NOT open the radiator cap — the cooling system is pressurized and the coolant can be over 200 degrees. It WILL burn you severely.
+   - What causes overheating: low coolant, failed water pump, stuck thermostat, blown head gasket, failed radiator fan
+   - What happens if you keep driving: warped cylinder head, blown head gasket, cracked engine block = engine replacement territory ($3,000-8,000+)
+   - Call for a tow. Do not try to "make it" to the shop.
+
+   For OIL PRESSURE:
+   - This is a STOP DRIVING NOW light. Oil pressure = the engine's lifeblood. Pull over and shut off the engine.
+   - Driving with no oil pressure will destroy the engine in minutes.
+
+   For BRAKE WARNING:
+   - Could be parking brake still engaged (check that first), low brake fluid, or worn brake pads
+   - If the pedal feels soft, spongy, or goes to the floor = STOP DRIVING. Call a tow.
+
+   For other lights: research their specific vehicle and give the appropriate urgency.
+
+3. URGENCY CLASSIFICATION — use color coding:
+   - RED — STOP DRIVING NOW: Pull over safely. Do not drive until inspected.
+   - YELLOW — GET CHECKED THIS WEEK: Not immediately dangerous but needs professional attention soon.
+   - GREEN — SCHEDULE SERVICE SOON: Can wait for a convenient appointment.
+   Explain WHY you chose that level.
+
+4. MOST COMMON CAUSES on their specific vehicle — include TSBs, known issues, NHTSA complaint patterns from the search data
+
+5. WHAT TO DO RIGHT NOW — specific, numbered, actionable steps
+
+6. WHAT TO TELL THE SHOP — give them the exact words to say when they call
+
+7. WHAT NOT TO DO — critical mistakes to avoid for this specific warning light (e.g., don't open a hot radiator cap, don't ignore a flashing CEL, don't keep driving on low oil pressure)
+
+8. WHEN IT GETS WORSE — warning signs that would escalate the urgency
+
+=== END RESPONSE STRUCTURE ===
+
+Be specific to their vehicle using the search data. If you cannot find vehicle-specific info, say so clearly and give the general guidance while recommending they check their owner's manual.
 
 ${SAFETY_GUARDRAILS}`;
 
@@ -380,7 +414,7 @@ export async function POST(request: Request) {
         }
         case 'warning_lights': {
           searchContext = await searchGemini(
-            `Search for information about the "${userMessage}" dashboard warning light on a ${vehicleStr}. What are the most common causes of this light on this specific vehicle? Include any known TSBs, common failures, or NHTSA complaints related to this warning light on this year/make/model. Return factual, verifiable information.`
+            `Search for information about the "${userMessage}" dashboard warning light on a ${vehicleStr}. What are the most common causes of this light on this specific vehicle? Include: known TSBs, common failures, NHTSA complaints related to this warning light on this exact year/make/model. If this is a check engine light, include common causes of both solid and flashing CEL on this platform. If this is a temperature warning, include common cooling system failures for this vehicle. Return factual, verifiable information with urgency context.`
           );
           break;
         }
@@ -406,7 +440,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Build Opus messages
+    // Build Sonnet messages
     const systemPrompt = getSystemPrompt(mode as Mode, searchContext);
 
     const anthropicMessages = messages.map((msg: { role: string; content: string }) => {
@@ -428,10 +462,10 @@ export async function POST(request: Request) {
       return { role: msg.role as 'user' | 'assistant', content };
     });
 
-    // Call Opus
+    // Call Sonnet
     const anthropic = getAnthropic();
     const response = await anthropic.messages.create({
-      model: 'claude-opus-4-6',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
       system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       messages: anthropicMessages,

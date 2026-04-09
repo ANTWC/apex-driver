@@ -28,9 +28,6 @@ export default function SplashPage() {
         className="flex flex-col items-center gap-4 transition-opacity duration-1000"
         style={{ opacity }}
       >
-        <div className="w-24 h-24 rounded-2xl bg-[#1a1a2e] flex items-center justify-center border border-[#2a2a3e]">
-          <span className="text-5xl">🦍</span>
-        </div>
         <h1 className="text-3xl font-bold tracking-wide text-white">
           APEX <span className="text-[#FF6200]">Driver</span>
         </h1>

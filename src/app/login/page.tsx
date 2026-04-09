@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -33,6 +34,43 @@ export default function LoginPage() {
       return;
     }
 
+    // Auto-create driver_profiles if this user doesn't have one yet
+    // (handles APEX Tech Pro users signing into Driver for the first time)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from('driver_profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile) {
+        await supabase.from('driver_profiles').insert({
+          user_id: user.id,
+          email: user.email,
+          tier: 'free',
+          diag_count: 0,
+          diag_month: new Date().toISOString().slice(0, 7),
+        });
+
+        // Send welcome email for new Driver users
+        try {
+          await fetch('/api/auth/welcome', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: user.email }),
+          });
+        } catch {
+          // Non-blocking
+        }
+
+        // Redirect to vehicle entry since they're new to Driver
+        router.replace('/signup?step=vehicle');
+        setLoading(false);
+        return;
+      }
+    }
+
     router.replace('/home');
   };
 
@@ -41,9 +79,13 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-20 h-20 rounded-2xl bg-[#1a1a2e] flex items-center justify-center border border-[#2a2a3e] mb-4">
-            <span className="text-4xl">🦍</span>
-          </div>
+          <Image
+            src="/images/apex-driver-icon.png"
+            alt="APEX Driver"
+            width={96}
+            height={96}
+            className="rounded-2xl mb-4"
+          />
           <h1 className="text-2xl font-bold text-white">
             APEX <span className="text-[#FF6200]">Driver</span>
           </h1>

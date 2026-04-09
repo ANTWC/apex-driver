@@ -3,20 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
-import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, Send, Loader2 } from 'lucide-react';
+import VehicleSelector from '@/components/VehicleSelector';
+import type { Vehicle } from '@/components/VehicleSelector';
+import { ArrowLeft, Send, Loader2, Car } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-}
-
-interface Vehicle {
-  id: string;
-  year: number;
-  make: string;
-  model: string;
-  mileage: number | null;
 }
 
 export default function DiagnosePage() {
@@ -31,19 +24,6 @@ export default function DiagnosePage() {
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace('/login');
-      return;
-    }
-    if (user) {
-      const supabase = createClient();
-      supabase
-        .from('driver_vehicles')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .then(({ data }) => {
-          if (data?.[0]) setVehicle(data[0]);
-        });
     }
   }, [user, authLoading, router]);
 
@@ -103,20 +83,28 @@ export default function DiagnosePage() {
           <button onClick={() => router.push('/home')} className="text-[#a0a0b8] hover:text-white">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <h1 className="text-lg font-bold text-white">What&apos;s Wrong?</h1>
-            {vehicle && (
-              <p className="text-[#6b6b80] text-xs">
-                {vehicle.year} {vehicle.make} {vehicle.model}
-              </p>
-            )}
-          </div>
+          <h1 className="text-lg font-bold text-white flex-1">What&apos;s Wrong?</h1>
         </div>
       </header>
 
+      {/* Vehicle Selector */}
+      <div className="max-w-lg mx-auto w-full px-4 pt-3">
+        <VehicleSelector selected={vehicle} onSelect={setVehicle} />
+      </div>
+
       {/* Messages */}
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-4 overflow-y-auto">
-        {messages.length === 0 && (
+        {!vehicle && messages.length === 0 && (
+          <div className="text-center mt-12">
+            <Car className="w-12 h-12 text-[#6b6b80] mx-auto mb-3" />
+            <p className="text-white font-semibold text-lg mb-1">Add Your Vehicle First</p>
+            <p className="text-[#a0a0b8] text-sm mb-4">We need your vehicle info to give you accurate diagnostics.</p>
+            <button onClick={() => router.push('/settings')} className="px-6 py-2 rounded-lg bg-[#FF6200] text-white font-semibold">
+              Add Vehicle
+            </button>
+          </div>
+        )}
+        {vehicle && messages.length === 0 && (
           <div className="text-center mt-12">
             <p className="text-[#a0a0b8] text-lg mb-2">Describe what&apos;s happening with your car</p>
             <p className="text-[#6b6b80] text-sm">
@@ -168,7 +156,7 @@ export default function DiagnosePage() {
             />
             <button
               onClick={handleSend}
-              disabled={loading || !input.trim()}
+              disabled={loading || !input.trim() || !vehicle}
               className="px-4 py-3 rounded-xl bg-[#FF6200] text-white hover:bg-[#e55800] transition-colors disabled:opacity-50"
             >
               <Send className="w-5 h-5" />

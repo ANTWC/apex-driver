@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, Car, Plus, Crown, Trash2 } from 'lucide-react';
+import VinScanner from '@/components/VinScanner';
+import { ArrowLeft, Car, Plus, Crown, Trash2, CreditCard, Loader2, Shield } from 'lucide-react';
 
 interface Vehicle {
   id: string;
@@ -12,11 +13,15 @@ interface Vehicle {
   make: string;
   model: string;
   mileage: number | null;
+  vin: string | null;
 }
 
 interface Profile {
   tier: 'free' | 'pro';
   email: string;
+  stripe_customer_id: string | null;
+  diag_count: number;
+  diag_month: string;
 }
 
 export default function SettingsPage() {
@@ -24,12 +29,16 @@ export default function SettingsPage() {
   const router = useRouter();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
+  const [useVinScanner, setUseVinScanner] = useState(false);
   const [year, setYear] = useState('');
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
   const [mileage, setMileage] = useState('');
   const [vin, setVin] = useState('');
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState('');
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -38,12 +47,16 @@ export default function SettingsPage() {
     }
     if (user) {
       const supabase = createClient();
-      supabase.from('driver_vehicles').select('*').eq('user_id', user.id).then(({ data }) => {
-        if (data) setVehicles(data);
-      });
-      supabase.from('driver_profiles').select('*').eq('user_id', user.id).single().then(({ data }) => {
-        if (data) setProfile(data);
-      });
+      supabase.from('driver_vehicles').select('*').eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => { if (data) setVehicles(data); });
+      supabase.from('driver_profiles').select('*').eq('user_id', user.id).single()
+        .then(({ data }) => { if (data) setProfile(data); });
+
+      fetch('/api/admin/check')
+        .then(r => r.json())
+        .then(d => setIsAdmin(d.authorized))
+        .catch(() => {});
     }
   }, [user, authLoading, router]);
 
@@ -60,8 +73,9 @@ export default function SettingsPage() {
     }).select().single();
 
     if (data) {
-      setVehicles([...vehicles, data]);
+      setVehicles([data, ...vehicles]);
       setShowAddVehicle(false);
+      setUseVinScanner(false);
       setYear(''); setMake(''); setModel(''); setMileage(''); setVin('');
     }
   };
@@ -73,8 +87,36 @@ export default function SettingsPage() {
     setVehicles(vehicles.filter(v => v.id !== id));
   };
 
+  const handleManageSubscription = async () => {
+    setPortalLoading(true);
+    setPortalError('');
+    try {
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.url) {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+        if (isStandalone) {
+          window.open(data.url, '_blank');
+        } else {
+          window.location.href = data.url;
+        }
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not open billing portal';
+      setPortalError(msg);
+      setPortalLoading(false);
+    }
+  };
+
   const isPro = profile?.tier === 'pro';
-  const maxVehicles = isPro ? 5 : 1;
+  const maxVehicles = isPro ? 5 : 2;
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const diagUsed = profile?.diag_month === currentMonth ? (profile?.diag_count ?? 0) : 0;
+  const diagLimit = isPro ? 10 : 1;
 
   return (
     <div className="min-h-screen bg-[#0a0a14]">
@@ -101,7 +143,41 @@ export default function SettingsPage() {
               ) : (
                 <span className="text-[#6b6b80] text-sm">Free Plan</span>
               )}
+              {isAdmin && (
+                <span className="flex items-center gap-1 text-red-400 text-xs font-semibold">
+                  <Shield className="w-3 h-3" /> Admin
+                </span>
+              )}
             </div>
+            <p className="text-[#6b6b80] text-xs mt-2">
+              Diagnostics used: {isAdmin ? '∞' : `${diagUsed}/${diagLimit}`} this month
+            </p>
+          </div>
+        </section>
+
+        {/* Subscription & Billing */}
+        <section className="mb-6">
+          <h2 className="text-[#a0a0b8] text-sm font-semibold uppercase tracking-wider mb-3">Subscription & Billing</h2>
+          <div className="flex flex-col gap-3">
+            {isPro && profile?.stripe_customer_id && (
+              <button
+                onClick={handleManageSubscription}
+                disabled={portalLoading}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-[#1a1a2e] border border-[#2a2a3e] text-white font-semibold hover:bg-[#222238] transition-colors disabled:opacity-50"
+              >
+                {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4 text-[#FF6200]" />}
+                Manage Subscription & Payment
+              </button>
+            )}
+            {!isPro && (
+              <button
+                onClick={() => router.push('/upgrade')}
+                className="w-full py-3 rounded-xl bg-[#FF6200] text-white font-semibold hover:bg-[#e55800] flex items-center justify-center gap-2"
+              >
+                <Crown className="w-4 h-4" /> Upgrade to Pro — $34.99/yr
+              </button>
+            )}
+            {portalError && <p className="text-red-400 text-sm">{portalError}</p>}
           </div>
         </section>
 
@@ -128,57 +204,79 @@ export default function SettingsPage() {
                   <Car className="w-5 h-5 text-[#FF6200]" />
                   <div>
                     <p className="text-white font-semibold">{v.year} {v.make} {v.model}</p>
-                    {v.mileage && <p className="text-[#6b6b80] text-sm">{v.mileage.toLocaleString()} miles</p>}
+                    <div className="flex gap-2">
+                      {v.mileage && <p className="text-[#6b6b80] text-xs">{v.mileage.toLocaleString()} miles</p>}
+                      {v.vin && <p className="text-[#6b6b80] text-xs font-mono">{v.vin}</p>}
+                    </div>
                   </div>
                 </div>
-                {vehicles.length > 1 && (
-                  <button onClick={() => removeVehicle(v.id)} className="text-[#6b6b80] hover:text-red-400">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
+                <button onClick={() => removeVehicle(v.id)} className="text-[#6b6b80] hover:text-red-400">
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>
 
           {showAddVehicle && (
             <div className="mt-3 p-4 rounded-xl bg-[#12121e] border border-[#2a2a3e] flex flex-col gap-3">
-              <input type="number" placeholder="Year" value={year} onChange={(e) => setYear(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
-              <input type="text" placeholder="Make" value={make} onChange={(e) => setMake(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
-              <input type="text" placeholder="Model" value={model} onChange={(e) => setModel(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
-              <input type="number" placeholder="Mileage (optional)" value={mileage} onChange={(e) => setMileage(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
-              <input type="text" placeholder="VIN (optional)" value={vin} onChange={(e) => setVin(e.target.value)} maxLength={17}
-                className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
+              {/* VIN Scanner toggle */}
+              <div className="flex gap-2 mb-1">
+                <button
+                  onClick={() => setUseVinScanner(false)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold ${!useVinScanner ? 'bg-[#FF6200] text-white' : 'bg-[#1a1a2e] border border-[#2a2a3e] text-[#a0a0b8]'}`}
+                >
+                  Manual Entry
+                </button>
+                <button
+                  onClick={() => setUseVinScanner(true)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold ${useVinScanner ? 'bg-[#FF6200] text-white' : 'bg-[#1a1a2e] border border-[#2a2a3e] text-[#a0a0b8]'}`}
+                >
+                  Scan VIN
+                </button>
+              </div>
+
+              {useVinScanner ? (
+                <VinScanner onDecoded={(data) => {
+                  setYear(data.year);
+                  setMake(data.make);
+                  setModel(data.model);
+                  setVin(data.vin);
+                  setUseVinScanner(false);
+                }} />
+              ) : (
+                <>
+                  <input type="number" placeholder="Year" value={year} onChange={(e) => setYear(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
+                  <input type="text" placeholder="Make" value={make} onChange={(e) => setMake(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
+                  <input type="text" placeholder="Model" value={model} onChange={(e) => setModel(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
+                  <input type="number" placeholder="Mileage (optional)" value={mileage} onChange={(e) => setMileage(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
+                  <input type="text" placeholder="VIN (optional)" value={vin} onChange={(e) => setVin(e.target.value)} maxLength={17}
+                    className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200] font-mono tracking-wider uppercase" />
+                </>
+              )}
+
               <div className="flex gap-2">
-                <button onClick={() => setShowAddVehicle(false)} className="flex-1 py-2 rounded-lg border border-[#2a2a3e] text-[#a0a0b8]">Cancel</button>
-                <button onClick={addVehicle} className="flex-1 py-2 rounded-lg bg-[#FF6200] text-white font-semibold">Add Vehicle</button>
+                <button onClick={() => { setShowAddVehicle(false); setUseVinScanner(false); }} className="flex-1 py-2 rounded-lg border border-[#2a2a3e] text-[#a0a0b8]">Cancel</button>
+                <button onClick={addVehicle} disabled={!year || !make || !model} className="flex-1 py-2 rounded-lg bg-[#FF6200] text-white font-semibold disabled:opacity-50">Add Vehicle</button>
               </div>
             </div>
           )}
 
-          {!isPro && vehicles.length >= 1 && (
+          {!isPro && vehicles.length >= 2 && (
             <p className="text-[#FF6200] text-sm mt-2">Upgrade to Pro for up to 5 vehicles</p>
           )}
         </section>
 
         {/* Actions */}
         <section>
-          <h2 className="text-[#a0a0b8] text-sm font-semibold uppercase tracking-wider mb-3">Actions</h2>
+          <h2 className="text-[#a0a0b8] text-sm font-semibold uppercase tracking-wider mb-3">Account Actions</h2>
           <div className="flex flex-col gap-3">
-            {!isPro && (
-              <button
-                onClick={() => router.push('/upgrade')}
-                className="w-full py-3 rounded-xl bg-[#FF6200] text-white font-semibold hover:bg-[#e55800]"
-              >
-                Upgrade to Pro
-              </button>
-            )}
             <button
               onClick={async () => { await signOut(); router.replace('/login'); }}
-              className="w-full py-3 rounded-xl border border-[#2a2a3e] text-[#a0a0b8] hover:text-white hover:border-[#FF6200]"
+              className="w-full py-3 rounded-xl border border-[#2a2a3e] text-[#a0a0b8] hover:text-white hover:border-[#FF6200] transition-colors"
             >
               Sign Out
             </button>

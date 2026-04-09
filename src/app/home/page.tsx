@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
 import Disclaimer from '@/components/Disclaimer';
+import VehicleSelector from '@/components/VehicleSelector';
+import type { Vehicle as VehicleType } from '@/components/VehicleSelector';
 import {
   AlertTriangle,
   Search,
@@ -87,8 +89,9 @@ function FeatureCard({
 export default function HomePage() {
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [vehicle, setVehicle] = useState<VehicleType | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -117,6 +120,11 @@ export default function HomePage() {
         .then(({ data }) => {
           if (data) setProfile(data);
         });
+
+      fetch('/api/admin/check')
+        .then(r => r.json())
+        .then(d => setIsAdmin(d.authorized))
+        .catch(() => {});
     }
   }, [user, loading, router]);
 
@@ -167,12 +175,17 @@ export default function HomePage() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 pb-24">
+        {/* Vehicle Selector */}
+        <div className="mt-4">
+          <VehicleSelector selected={vehicle} onSelect={setVehicle} />
+        </div>
+
         {/* Vehicle Banner */}
         {vehicle && (
-          <div className="mt-4 p-4 rounded-xl bg-[#12121e] border border-[#2a2a3e]">
+          <div className="mt-3 p-4 rounded-xl bg-[#12121e] border border-[#2a2a3e]">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[#a0a0b8] text-sm">Your Vehicle</p>
+                <p className="text-[#a0a0b8] text-sm">Active Vehicle</p>
                 <p className="text-white font-bold text-lg">
                   {vehicle.year} {vehicle.make} {vehicle.model}
                 </p>
@@ -188,9 +201,9 @@ export default function HomePage() {
         {/* Diagnostics Remaining */}
         <div className="mt-4 p-3 rounded-xl bg-[#1a1a2e] border border-[#2a2a3e] flex items-center justify-between">
           <span className="text-[#a0a0b8] text-sm">
-            AI Diagnostics: <span className="text-white font-semibold">{diagRemaining}/{diagLimit}</span> remaining this month
+            AI Diagnostics: <span className="text-white font-semibold">{isAdmin ? '∞' : `${diagRemaining}/${diagLimit}`}</span> remaining this month
           </span>
-          {!isPro && (
+          {!isPro && !isAdmin && (
             <span className="text-[#FF6200] text-sm font-semibold">Unlock 10 with Pro</span>
           )}
         </div>
@@ -257,7 +270,7 @@ export default function HomePage() {
               description="Photo your bill — AI explains every line"
               href="/estimate"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
             <FeatureCard
               icon={MessageSquareReply}
@@ -265,7 +278,7 @@ export default function HomePage() {
               description="Know what to say back, every time"
               href="/reply-tech"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
             <FeatureCard
               icon={Smartphone}
@@ -273,7 +286,7 @@ export default function HomePage() {
               description="Bluetooth, nav, heated seats — how to use it all"
               href="/car-tech"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
             <FeatureCard
               icon={Clock}
@@ -281,7 +294,7 @@ export default function HomePage() {
               description="Stop Driving / Get Checked Soon / Schedule Service"
               href="/urgency"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
             <FeatureCard
               icon={DollarSign}
@@ -289,7 +302,7 @@ export default function HomePage() {
               description="National average repair cost ranges"
               href="/cost-estimate"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
             <FeatureCard
               icon={Lightbulb}
@@ -297,7 +310,7 @@ export default function HomePage() {
               description="Used car intelligence report"
               href="/before-you-buy"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
             <FeatureCard
               icon={FolderOpen}
@@ -305,7 +318,7 @@ export default function HomePage() {
               description="Insurance, registration, receipts — always on you"
               href="/glove-box"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
             <FeatureCard
               icon={Trophy}
@@ -313,7 +326,7 @@ export default function HomePage() {
               description="Gamified maintenance tracking"
               href="/score"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
             <FeatureCard
               icon={Snowflake}
@@ -321,7 +334,7 @@ export default function HomePage() {
               description="Winter, summer & road trip checklists"
               href="/seasonal"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
             <FeatureCard
               icon={Ban}
@@ -329,7 +342,7 @@ export default function HomePage() {
               description="No banner ads, ever"
               href="/upgrade"
               badge="PRO"
-              locked={!isPro}
+              locked={!isPro && !isAdmin}
             />
           </div>
         </div>

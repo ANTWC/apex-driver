@@ -21,6 +21,7 @@ export default function GloveBoxPage() {
   const router = useRouter();
   const [docs, setDocs] = useState<Document[]>([]);
   const [tier, setTier] = useState('free');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [docType, setDocType] = useState('Insurance Card');
   const [title, setTitle] = useState('');
@@ -32,6 +33,7 @@ export default function GloveBoxPage() {
       const supabase = createClient();
       supabase.from('driver_profiles').select('tier').eq('user_id', user.id).single()
         .then(({ data }) => { if (data) setTier(data.tier); });
+      fetch('/api/admin/check').then(r => r.json()).then(d => setIsAdmin(d.authorized)).catch(() => {});
       supabase.from('driver_glove_box').select('*').eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .then(({ data }) => { if (data) setDocs(data); });
@@ -62,7 +64,7 @@ export default function GloveBoxPage() {
     setDocs(docs.filter(d => d.id !== id));
   };
 
-  if (tier !== 'pro' && !authLoading) {
+  if (tier !== 'pro' && !isAdmin && !authLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a14] flex flex-col">
         <header className="sticky top-0 z-50 bg-[#0a0a14]/95 backdrop-blur border-b border-[#2a2a3e]">
