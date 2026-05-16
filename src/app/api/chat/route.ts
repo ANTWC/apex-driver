@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const SUPER_ADMIN_EMAILS: string[] = ['antcalhoun1@gmail.com'];
 
-function getAnthropic() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-}
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
 
 // --- Shared safety guardrails injected into every prompt ---
 const SAFETY_GUARDRAILS = `
@@ -172,7 +169,7 @@ The user has a warning light on. Using the verified search data about their spec
 
 1. WHAT THIS LIGHT MEANS ON THEIR VEHICLE
    - Explain what this light specifically means on their year/make/model — not generic info
-   - Use the Gemini search results to reference their actual vehicle
+   - Use the search results to reference their actual vehicle
 
 2. CRITICAL VARIATIONS (this is where most apps fail — you must get this right)
    For CHECK ENGINE light:
@@ -325,7 +322,7 @@ async function searchGemini(prompt: string): Promise<string> {
     const timeout = setTimeout(() => controller.abort(), 6000);
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `${GEMINI_API_URL}?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -346,6 +343,66 @@ async function searchGemini(prompt: string): Promise<string> {
   } catch {
     return '';
   }
+}
+
+// Helper: Call Gemini for main AI response
+async function callGemini(
+  systemPrompt: string,
+  messages: { role: string; content: string }[],
+  imageBase64?: string
+): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
+
+  // Build Gemini contents array from conversation history
+  // Gemini uses "user" and "model" roles (not "assistant")
+  const geminiContents: Array<{ role: string; parts: Array<Record<string, unknown>> }> = [];
+
+  for (const msg of messages) {
+    const parts: Array<Record<string, unknown>> = [];
+
+    // Add image to the last user message if provided
+    if (msg.role === 'user' && imageBase64 && msg === messages[messages.length - 1]) {
+      parts.push({
+        inline_data: {
+          mime_type: 'image/jpeg',
+          data: imageBase64,
+        },
+      });
+    }
+
+    parts.push({ text: msg.content });
+
+    geminiContents.push({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts,
+    });
+  }
+
+  const response = await fetch(
+    `${GEMINI_API_URL}?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: geminiContents,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 4000,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Gemini API error:', errorText);
+    throw new Error(`Gemini API returned ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 export async function POST(request: Request) {
@@ -399,7 +456,6 @@ export async function POST(request: Request) {
     if (vehicle) {
       switch (mode as Mode) {
         case 'diagnose': {
-          // Run two searches in parallel: TSBs/recalls AND common causes on this platform
           const [bulletinResults, commonCausesResults] = await Promise.all([
             searchGemini(
               `Search for Technical Service Bulletins (TSBs), safety recalls, NHTSA complaints, and known issues for: ${vehicleStr} related to: ${userMessage}\n\nReturn ONLY factual, verifiable information. Include TSB numbers, NHTSA complaint counts, known common issues, and any relevant recalls. If nothing specific found, say NO_BULLETINS_FOUND.`
@@ -440,41 +496,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // Build Sonnet messages
+    // Append vehicle context to user messages
+    const messagesWithVehicle = messages.map((msg: { role: string; content: string }) => ({
+      role: msg.role,
+      content: msg.role === 'user' ? msg.content + vehicleContext : msg.content,
+    }));
+
+    // Call Gemini
     const systemPrompt = getSystemPrompt(mode as Mode, searchContext);
-
-    const anthropicMessages = messages.map((msg: { role: string; content: string }) => {
-      const content: Anthropic.ContentBlockParam[] = [];
-
-      if (msg.role === 'user' && imageBase64) {
-        content.push({
-          type: 'image',
-          source: {
-            type: 'base64',
-            media_type: 'image/jpeg',
-            data: imageBase64,
-          },
-        });
-      }
-
-      content.push({ type: 'text', text: msg.content + (msg.role === 'user' ? vehicleContext : '') });
-
-      return { role: msg.role as 'user' | 'assistant', content };
-    });
-
-    // Call Sonnet
-    const anthropic = getAnthropic();
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-      messages: anthropicMessages,
-    });
-
-    const assistantMessage = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map(block => block.text)
-      .join('');
+    const assistantMessage = await callGemini(systemPrompt, messagesWithVehicle, imageBase64);
 
     // Update usage count (skip for admin, skip for non-counted modes)
     if (!isAdmin && COUNTED_MODES.includes(mode as Mode)) {
