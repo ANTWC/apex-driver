@@ -1,16 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/AuthProvider';
+import { createClient } from '@/lib/supabase/client';
 import { ArrowLeft, Check, Crown } from 'lucide-react';
 
 export default function UpgradePage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [plan, setPlan] = useState<'yearly' | 'monthly'>('yearly');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Issue #11: Redirect Pro users away from upgrade page
+  useEffect(() => {
+    if (authLoading || !user) return;
+    const supabase = createClient();
+    supabase.from('driver_profiles').select('tier').eq('user_id', user.id).single()
+      .then(({ data }) => {
+        if (data?.tier === 'pro') router.replace('/home');
+      });
+  }, [user, authLoading, router]);
 
   const handleSubscribe = async () => {
     setLoading(true);
+    setError('');
     try {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
@@ -18,10 +33,16 @@ export default function UpgradePage() {
         body: JSON.stringify({ plan }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Something went wrong. Please try again.');
+        setLoading(false);
+        return;
+      }
       if (data.url) {
         window.location.href = data.url;
       }
     } catch {
+      setError('Network error. Please check your connection and try again.');
       setLoading(false);
     }
   };
@@ -114,6 +135,10 @@ export default function UpgradePage() {
         >
           {loading ? 'Loading...' : `Start Free Trial — ${plan === 'yearly' ? '$34.99/yr' : '$4.99/mo'}`}
         </button>
+
+        {error && (
+          <p className="text-red-400 text-sm text-center mt-3">{error}</p>
+        )}
 
         <p className="text-[#6b6b80] text-xs text-center mt-3">
           Cancel anytime from your account settings. No hidden fees.

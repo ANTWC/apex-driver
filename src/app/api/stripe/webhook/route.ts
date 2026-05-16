@@ -31,12 +31,20 @@ export async function POST(request: Request) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.user_id;
-      if (userId) {
-        await supabase.from('driver_profiles').update({
+
+      // Issue #8: Verify payment status before upgrading
+      if (userId && (session.payment_status === 'paid' || session.payment_status === 'no_payment_required')) {
+        const { error } = await supabase.from('driver_profiles').update({
           tier: 'pro',
           stripe_customer_id: session.customer as string,
           stripe_subscription_id: session.subscription as string,
         }).eq('user_id', userId);
+
+        // Issue #6: Return 500 on DB error so Stripe retries
+        if (error) {
+          console.error('Webhook DB error (checkout.session.completed):', error);
+          return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
+        }
       }
       break;
     }
@@ -45,10 +53,15 @@ export async function POST(request: Request) {
       const subscription = event.data.object as Stripe.Subscription;
       const userId = subscription.metadata?.user_id;
       if (userId) {
-        await supabase.from('driver_profiles').update({
+        const { error } = await supabase.from('driver_profiles').update({
           tier: 'free',
           stripe_subscription_id: null,
         }).eq('user_id', userId);
+
+        if (error) {
+          console.error('Webhook DB error (subscription.deleted):', error);
+          return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
+        }
       }
       break;
     }
@@ -58,9 +71,36 @@ export async function POST(request: Request) {
       const userId = subscription.metadata?.user_id;
       if (userId) {
         const isActive = subscription.status === 'active' || subscription.status === 'trialing';
-        await supabase.from('driver_profiles').update({
+        const { error } = await supabase.from('driver_profiles').update({
           tier: isActive ? 'pro' : 'free',
         }).eq('user_id', userId);
+
+        if (error) {
+          console.error('Webhook DB error (subscription.updated):', error);
+          return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
+        }
+      }
+      break;
+    }
+
+    // Issue #7: Handle failed payments — downgrade if renewal fails
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = invoice.parent?.subscription_details?.subscription;
+      const resolvedSubId = typeof subscriptionId === 'string' ? subscriptionId : subscriptionId?.id;
+      if (resolvedSubId) {
+        const subscription = await stripe.subscriptions.retrieve(resolvedSubId);
+        const userId = subscription.metadata?.user_id;
+        if (userId && invoice.attempt_count >= 3) {
+          const { error } = await supabase.from('driver_profiles').update({
+            tier: 'free',
+          }).eq('user_id', userId);
+
+          if (error) {
+            console.error('Webhook DB error (invoice.payment_failed):', error);
+            return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
+          }
+        }
       }
       break;
     }
