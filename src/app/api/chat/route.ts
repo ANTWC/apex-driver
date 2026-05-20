@@ -339,7 +339,13 @@ async function searchGemini(prompt: string): Promise<string> {
     if (!response.ok) return '';
 
     const data = await response.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    let text = parts
+      .filter((p: any) => typeof p.text === 'string' && !p.executableCode && !p.codeExecutionResult)
+      .map((p: { text?: string }) => p.text || '')
+      .join('') || '';
+    text = text.replace(/tool_code\n[\s\S]*?(?=\n[A-Z#]|\n\n)/g, '').trim();
+    return text;
   } catch {
     return '';
   }
