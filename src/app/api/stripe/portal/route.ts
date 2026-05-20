@@ -26,7 +26,7 @@ export async function POST() {
     }
 
     const stripe = getStripe();
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://apex-driver.vercel.app';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://myapexdriver.com';
 
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
