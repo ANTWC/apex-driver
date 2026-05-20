@@ -2,10 +2,12 @@
   "name": "APEX Driver",
   "short_name": "APEX Driver",
   "description": "Your Master Tech in Your Pocket",
-  "start_url": "/",
+  "start_url": "/home",
   "display": "standalone",
   "background_color": "#0a0a14",
   "theme_color": "#0a0a14",
+  "orientation": "portrait",
+  "scope": "/",
   "icons": [
     {
       "src": "/images/apex-driver-icon.png",
@@ -16,6 +18,12 @@
       "src": "/images/apex-driver-icon.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "/images/apex-driver-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

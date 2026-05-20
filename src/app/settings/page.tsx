@@ -237,6 +237,25 @@ export default function SettingsPage() {
           )}
         </section>
 
+        {/* Legal */}
+        <section className="mb-6">
+          <h2 className="text-[#a0a0b8] text-sm font-semibold uppercase tracking-wider mb-3">Legal</h2>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => router.push('/privacy')}
+              className="w-full py-3 rounded-xl bg-[#1a1a2e] border border-[#2a2a3e] text-white hover:bg-[#222238] transition-colors text-left px-4"
+            >
+              Privacy Policy
+            </button>
+            <button
+              onClick={() => router.push('/terms')}
+              className="w-full py-3 rounded-xl bg-[#1a1a2e] border border-[#2a2a3e] text-white hover:bg-[#222238] transition-colors text-left px-4"
+            >
+              Terms of Service
+            </button>
+          </div>
+        </section>
+
         {/* Actions */}
         <section>
           <h2 className="text-[#a0a0b8] text-sm font-semibold uppercase tracking-wider mb-3">Account Actions</h2>

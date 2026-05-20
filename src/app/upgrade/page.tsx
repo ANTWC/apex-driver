@@ -6,14 +6,25 @@ import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
 import { ArrowLeft, Check, Crown } from 'lucide-react';
 
+function getIsIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 export default function UpgradePage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [plan, setPlan] = useState<'yearly' | 'monthly'>('yearly');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isIOS, setIsIOS] = useState(false);
 
-  // Issue #11: Redirect Pro users away from upgrade page
+  useEffect(() => {
+    setIsIOS(getIsIOS());
+  }, []);
+
+  // Redirect Pro users away from upgrade page
   useEffect(() => {
     if (authLoading || !user) return;
     const supabase = createClient();
@@ -80,41 +91,6 @@ export default function UpgradePage() {
           <p className="text-[#a0a0b8]">Your complete car ownership companion</p>
         </div>
 
-        {/* Plan toggle */}
-        <div className="flex gap-3 mb-6">
-          <button
-            onClick={() => setPlan('yearly')}
-            className={`flex-1 p-4 rounded-xl border-2 transition-colors ${
-              plan === 'yearly'
-                ? 'border-[#FF6200] bg-[#FF6200]/10'
-                : 'border-[#2a2a3e] bg-[#1a1a2e]'
-            }`}
-          >
-            <p className="text-white font-bold text-lg">$34.99/yr</p>
-            <p className="text-[#a0a0b8] text-sm">$2.92/mo — Save 42%</p>
-            <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded-full bg-[#FF6200]/20 text-[#FF6200] font-semibold">
-              Best Value
-            </span>
-          </button>
-          <button
-            onClick={() => setPlan('monthly')}
-            className={`flex-1 p-4 rounded-xl border-2 transition-colors ${
-              plan === 'monthly'
-                ? 'border-[#FF6200] bg-[#FF6200]/10'
-                : 'border-[#2a2a3e] bg-[#1a1a2e]'
-            }`}
-          >
-            <p className="text-white font-bold text-lg">$4.99/mo</p>
-            <p className="text-[#a0a0b8] text-sm">Cancel anytime</p>
-          </button>
-        </div>
-
-        {/* 7-day trial */}
-        <div className="p-4 rounded-xl bg-[#12121e] border border-[#2a2a3e] mb-6 text-center">
-          <p className="text-white font-semibold">7-day free trial</p>
-          <p className="text-[#a0a0b8] text-sm">Try everything free. Cancel before day 8 and pay nothing.</p>
-        </div>
-
         {/* Features list */}
         <div className="mb-8">
           <h3 className="text-[#a0a0b8] text-sm font-semibold uppercase tracking-wider mb-3">Everything in Pro</h3>
@@ -128,21 +104,73 @@ export default function UpgradePage() {
           </div>
         </div>
 
-        <button
-          onClick={handleSubscribe}
-          disabled={loading}
-          className="w-full py-4 rounded-xl bg-[#FF6200] text-white font-bold text-lg hover:bg-[#e55800] transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Loading...' : `Start Free Trial — ${plan === 'yearly' ? '$34.99/yr' : '$4.99/mo'}`}
-        </button>
+        {isIOS ? (
+          <div className="text-center p-6 rounded-xl bg-[#12121e] border border-[#2a2a3e]">
+            <p className="text-white font-semibold mb-2">Subscribe on the Web</p>
+            <p className="text-[#a0a0b8] text-sm mb-4">
+              Visit myapexdriver.com on your browser to start your free trial and unlock all Pro features.
+            </p>
+            <button
+              onClick={() => window.open('https://myapexdriver.com', '_blank')}
+              className="w-full py-3 rounded-lg bg-[#FF6200] text-white font-semibold text-lg hover:bg-[#e55800] transition-colors"
+            >
+              Open myapexdriver.com
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Plan toggle */}
+            <div className="flex gap-3 mb-6">
+              <button
+                onClick={() => setPlan('yearly')}
+                className={`flex-1 p-4 rounded-xl border-2 transition-colors ${
+                  plan === 'yearly'
+                    ? 'border-[#FF6200] bg-[#FF6200]/10'
+                    : 'border-[#2a2a3e] bg-[#1a1a2e]'
+                }`}
+              >
+                <p className="text-white font-bold text-lg">$34.99/yr</p>
+                <p className="text-[#a0a0b8] text-sm">$2.92/mo — Save 42%</p>
+                <span className="inline-block mt-2 text-xs px-2 py-0.5 rounded-full bg-[#FF6200]/20 text-[#FF6200] font-semibold">
+                  Best Value
+                </span>
+              </button>
+              <button
+                onClick={() => setPlan('monthly')}
+                className={`flex-1 p-4 rounded-xl border-2 transition-colors ${
+                  plan === 'monthly'
+                    ? 'border-[#FF6200] bg-[#FF6200]/10'
+                    : 'border-[#2a2a3e] bg-[#1a1a2e]'
+                }`}
+              >
+                <p className="text-white font-bold text-lg">$4.99/mo</p>
+                <p className="text-[#a0a0b8] text-sm">Cancel anytime</p>
+              </button>
+            </div>
 
-        {error && (
-          <p className="text-red-400 text-sm text-center mt-3">{error}</p>
+            {/* 7-day trial */}
+            <div className="p-4 rounded-xl bg-[#12121e] border border-[#2a2a3e] mb-6 text-center">
+              <p className="text-white font-semibold">7-day free trial</p>
+              <p className="text-[#a0a0b8] text-sm">Try everything free. Cancel before day 8 and pay nothing.</p>
+            </div>
+
+            <button
+              onClick={handleSubscribe}
+              disabled={loading}
+              className="w-full py-4 rounded-xl bg-[#FF6200] text-white font-bold text-lg hover:bg-[#e55800] transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Loading...' : `Start Free Trial — ${plan === 'yearly' ? '$34.99/yr' : '$4.99/mo'}`}
+            </button>
+
+            {error && (
+              <p className="text-red-400 text-sm text-center mt-3">{error}</p>
+            )}
+
+            <p className="text-[#6b6b80] text-xs text-center mt-3">
+              Cancel anytime from your account settings. No hidden fees.
+            </p>
+          </>
         )}
-
-        <p className="text-[#6b6b80] text-xs text-center mt-3">
-          Cancel anytime from your account settings. No hidden fees.
-        </p>
       </main>
     </div>
   );
