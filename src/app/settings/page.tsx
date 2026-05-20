@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
-import VinScanner from '@/components/VinScanner';
 import { ArrowLeft, Car, Plus, Crown, Trash2, CreditCard, Loader2, Shield } from 'lucide-react';
 
 interface Vehicle {
@@ -31,7 +30,6 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
-  const [useVinScanner, setUseVinScanner] = useState(false);
   const [year, setYear] = useState('');
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
@@ -75,7 +73,6 @@ export default function SettingsPage() {
     if (data) {
       setVehicles([data, ...vehicles]);
       setShowAddVehicle(false);
-      setUseVinScanner(false);
       setYear(''); setMake(''); setModel(''); setMileage(''); setVin('');
     }
   };
@@ -219,32 +216,6 @@ export default function SettingsPage() {
 
           {showAddVehicle && (
             <div className="mt-3 p-4 rounded-xl bg-[#12121e] border border-[#2a2a3e] flex flex-col gap-3">
-              {/* VIN Scanner toggle */}
-              <div className="flex gap-2 mb-1">
-                <button
-                  onClick={() => setUseVinScanner(false)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-semibold ${!useVinScanner ? 'bg-[#FF6200] text-white' : 'bg-[#1a1a2e] border border-[#2a2a3e] text-[#a0a0b8]'}`}
-                >
-                  Manual Entry
-                </button>
-                <button
-                  onClick={() => setUseVinScanner(true)}
-                  className={`flex-1 py-2 rounded-lg text-sm font-semibold ${useVinScanner ? 'bg-[#FF6200] text-white' : 'bg-[#1a1a2e] border border-[#2a2a3e] text-[#a0a0b8]'}`}
-                >
-                  Scan VIN
-                </button>
-              </div>
-
-              {useVinScanner ? (
-                <VinScanner onDecoded={(data) => {
-                  setYear(data.year);
-                  setMake(data.make);
-                  setModel(data.model);
-                  setVin(data.vin);
-                  setUseVinScanner(false);
-                }} />
-              ) : (
-                <>
                   <input type="number" placeholder="Year" value={year} onChange={(e) => setYear(e.target.value)}
                     className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
                   <input type="text" placeholder="Make" value={make} onChange={(e) => setMake(e.target.value)}
@@ -253,13 +224,9 @@ export default function SettingsPage() {
                     className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
                   <input type="number" placeholder="Mileage (optional)" value={mileage} onChange={(e) => setMileage(e.target.value)}
                     className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200]" />
-                  <input type="text" placeholder="VIN (optional)" value={vin} onChange={(e) => setVin(e.target.value)} maxLength={17}
-                    className="w-full px-4 py-2 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200] font-mono tracking-wider uppercase" />
-                </>
-              )}
 
               <div className="flex gap-2">
-                <button onClick={() => { setShowAddVehicle(false); setUseVinScanner(false); }} className="flex-1 py-2 rounded-lg border border-[#2a2a3e] text-[#a0a0b8]">Cancel</button>
+                <button onClick={() => setShowAddVehicle(false)} className="flex-1 py-2 rounded-lg border border-[#2a2a3e] text-[#a0a0b8]">Cancel</button>
                 <button onClick={addVehicle} disabled={!year || !make || !model} className="flex-1 py-2 rounded-lg bg-[#FF6200] text-white font-semibold disabled:opacity-50">Add Vehicle</button>
               </div>
             </div>

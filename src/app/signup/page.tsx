@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import Image from 'next/image';
-import VinScanner from '@/components/VinScanner';
+
 
 export default function SignupPage() {
   return (
@@ -37,7 +37,6 @@ function SignupContent() {
   const [model, setModel] = useState('');
   const [mileage, setMileage] = useState('');
   const [vin, setVin] = useState('');
-  const [useVinScanner, setUseVinScanner] = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,34 +136,7 @@ function SignupContent() {
           <h2 className="text-2xl font-bold text-white mb-2">Add Your Vehicle</h2>
           <p className="text-[#a0a0b8] mb-6">Tell us about your car so we can give you accurate advice.</p>
 
-          {/* VIN Scanner toggle */}
-          <div className="flex gap-2 mb-2">
-            <button
-              onClick={() => setUseVinScanner(false)}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold ${!useVinScanner ? 'bg-[#FF6200] text-white' : 'bg-[#1a1a2e] border border-[#2a2a3e] text-[#a0a0b8]'}`}
-            >
-              Manual Entry
-            </button>
-            <button
-              onClick={() => setUseVinScanner(true)}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold ${useVinScanner ? 'bg-[#FF6200] text-white' : 'bg-[#1a1a2e] border border-[#2a2a3e] text-[#a0a0b8]'}`}
-            >
-              Scan VIN
-            </button>
-          </div>
-
-          {useVinScanner ? (
-            <div className="flex flex-col gap-4">
-              <VinScanner onDecoded={(data) => {
-                setYear(data.year);
-                setMake(data.make);
-                setModel(data.model);
-                setVin(data.vin);
-                setUseVinScanner(false);
-              }} />
-            </div>
-          ) : (
-            <form onSubmit={handleVehicle} className="flex flex-col gap-4">
+          <form onSubmit={handleVehicle} className="flex flex-col gap-4">
               <input
                 type="number"
                 placeholder="Year (e.g., 2020)"
@@ -196,15 +168,6 @@ function SignupContent() {
                 onChange={(e) => setMileage(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200] transition-colors"
               />
-              <input
-                type="text"
-                placeholder="VIN (optional)"
-                value={vin}
-                onChange={(e) => setVin(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg bg-[#1a1a2e] border border-[#2a2a3e] text-white placeholder-[#6b6b80] focus:outline-none focus:border-[#FF6200] transition-colors"
-                maxLength={17}
-              />
-
               {error && <p className="text-red-400 text-sm">{error}</p>}
 
               <button
@@ -215,7 +178,6 @@ function SignupContent() {
                 {loading ? 'Saving...' : 'Continue'}
               </button>
             </form>
-          )}
         </div>
       </div>
     );
